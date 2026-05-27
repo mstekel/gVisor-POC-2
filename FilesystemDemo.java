@@ -78,5 +78,6 @@ public class FilesystemDemo {
 
         System.out.println("\n\n\n-- data/ contents after demo --");
         SandboxRunner.exec("ls", "-1", "data/");
+        System.out.println("\n\n\n");
     }
 }
