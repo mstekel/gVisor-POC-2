@@ -39,7 +39,7 @@ public class SyscallDemo {
     // -- Case A: perf_event_open - not implemented by gVisor -----------------
 
     private void runCaseA() {
-        System.out.println("\n  -- Case A: perf_event_open (syscall 298) --");
+        System.out.println("\n\n\n  -- Case A: perf_event_open (syscall 298) --");
         System.out.println("  Historically vulnerable kernel perf API.");
         System.out.println("  gVisor does not implement it -> ENODEV.");
 
@@ -77,7 +77,7 @@ public class SyscallDemo {
     // -- Case B: sethostname - implemented by gVisor, blocked by seccomp -----
 
     private void runCaseB() {
-        System.out.println("\n  -- Case B: sethostname (syscall 170) --");
+        System.out.println("\n\n\n  -- Case B: sethostname (syscall 170) --");
         System.out.println("  gVisor implements it, but seccomp blocks it first.");
         System.out.println("  Attack scenario: spoof hostname-based identity checks.");
 
