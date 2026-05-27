@@ -111,6 +111,7 @@ public class SandboxRunner {
         return """
                 {
                   "ociVersion": "1.0.0",
+                  "hostname": "sandbox",
                   "process": {
                     "terminal": false,
                     "user": { "uid": 0, "gid": 0 },
@@ -136,10 +137,10 @@ public class SandboxRunner {
                   }
                 }
                 """.formatted(
-                        escapedScript,
-                        String.join(",", mounts),
-                        seccompBlock,
-                        netNs);
+                escapedScript,
+                String.join(",", mounts),
+                seccompBlock,
+                netNs);
     }
 
     // - Helpers -
