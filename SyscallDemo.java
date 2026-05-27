@@ -82,10 +82,17 @@ public class SyscallDemo {
         System.out.println("  Attack scenario: spoof hostname-based identity checks.");
 
         String script = """
-                import ctypes, os, socket
+                import ctypes, os
+
+                def get_hostname():
+                    try:
+                        return open('/proc/sys/kernel/hostname').read().strip()
+                    except:
+                        return '(unknown)'
+
                 libc = ctypes.CDLL(None, use_errno=True)
 
-                original = socket.gethostname()
+                original = get_hostname()
                 print(f'  hostname before: {original}')
 
                 name = b'pwned-host'
@@ -93,7 +100,7 @@ public class SyscallDemo {
                 err  = ctypes.get_errno()
 
                 if ret == 0:
-                    print(f'  sethostname    -> OK        hostname is now: {socket.gethostname()}')
+                    print(f'  sethostname    -> OK        hostname is now: {get_hostname()}')
                 elif err == 1:
                     print(f'  sethostname    -> EPERM     BLOCKED by seccomp (hostname unchanged)')
                 elif err == 19:
