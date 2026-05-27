@@ -98,7 +98,7 @@ public class NetworkDemo {
         String config    = buildNetworkConfig(script, netnsPath);
         Files.writeString(Path.of(bundle + "/config.json"), config);
 
-        System.out.println("\n[SANDBOXED]   Connect via veth (allowed) and external (blocked)");
+        System.out.println("\n\n\n[SANDBOXED]   Connect via veth (allowed) and external (blocked)");
         SandboxRunner.exec(
                 "runsc",
                 "--root",           tmpRoot,
@@ -182,7 +182,7 @@ public class NetworkDemo {
                 } catch (IOException ignored) {}
             }
         });
-        System.out.println("\n  [Echo server listening on 0.0.0.0:" + ECHO_PORT + "]");
+        System.out.println("\n\n\n[Echo server listening on 0.0.0.0:" + ECHO_PORT + "]");
         return ss;
     }
 
