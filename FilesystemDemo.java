@@ -20,7 +20,7 @@ public class FilesystemDemo {
             LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
 
     public void run() {
-        System.out.println("+------------------------------------------+");
+        System.out.println("\n\n\n+------------------------------------------+");
         System.out.println("|  Demo 1: Filesystem Restriction          |");
         System.out.println("+------------------------------------------+");
         System.out.println("Sandbox may only write to the data/ folder.");

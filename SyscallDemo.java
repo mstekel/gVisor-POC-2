@@ -25,7 +25,7 @@ import java.util.List;
 public class SyscallDemo {
 
     public void run() {
-        System.out.println("+------------------------------------------+");
+        System.out.println("\n\n\n+------------------------------------------+");
         System.out.println("|  Demo 2: Syscall Restriction             |");
         System.out.println("|  Case A: perf_event_open (not in gVisor) |");
         System.out.println("|  Case B: sethostname     (blocked by     |");

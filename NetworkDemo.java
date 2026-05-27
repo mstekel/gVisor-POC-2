@@ -35,7 +35,7 @@ public class NetworkDemo {
     private static final String SETUP_SCRIPT  = "./setup-netns.sh";
 
     public void run() throws Exception {
-        System.out.println("+------------------------------------------+");
+        System.out.println("\n\n\n+------------------------------------------+");
         System.out.println("|  Demo 3: Network Restriction             |");
         System.out.println("|  Sandbox: veth only, external blocked    |");
         System.out.println("+------------------------------------------+");
