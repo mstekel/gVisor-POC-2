@@ -4,15 +4,15 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
- * Demo 1 — Filesystem Restriction
+ * Demo 1 - Filesystem Restriction
  *
  * The sandboxed process may only read/write the "data/" folder.
  * Any attempt to write outside it (e.g. /tmp, /usr) is blocked.
  *
- * Unsandboxed: writes to data/ and /tmp  → both succeed.
- * Sandboxed:   writes to data/           → succeeds (bind-mounted rw).
- *              writes to /tmp            → fails    (tmpfs, not the real /tmp).
- *              writes to /usr            → fails    (read-only bind mount).
+ * Unsandboxed: writes to data/ and /tmp  -> both succeed.
+ * Sandboxed:   writes to data/           -> succeeds (bind-mounted rw).
+ *              writes to /tmp            -> fails    (read-only tmpfs).
+ *              writes to /usr            -> fails    (read-only bind mount).
  */
 public class FilesystemDemo {
 
@@ -20,15 +20,15 @@ public class FilesystemDemo {
             LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
 
     public void run() {
-        System.out.println("╔══════════════════════════════════════════╗");
-        System.out.println("║  Demo 1: Filesystem Restriction          ║");
-        System.out.println("╚══════════════════════════════════════════╝");
+        System.out.println("+------------------------------------------+");
+        System.out.println("|  Demo 1: Filesystem Restriction          |");
+        System.out.println("+------------------------------------------+");
         System.out.println("Sandbox may only write to the data/ folder.");
 
         new File("data").mkdirs();
         String dataAbs = new File("data").getAbsolutePath();
 
-        // ── Unsandboxed ───────────────────────────────────────────────────────
+        // - Unsandboxed -
         String unsandboxedScript = """
                 import os, datetime
                 tag = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
@@ -37,14 +37,14 @@ public class FilesystemDemo {
                     try:
                         with open(path, 'w') as f:
                             f.write('written by unsandboxed process\\n')
-                        print(f'  WRITE {path:50s} → OK')
+                        print(f'  WRITE {path:50s} -> OK')
                     except Exception as e:
-                        print(f'  WRITE {path:50s} → FAILED: {e}')
+                        print(f'  WRITE {path:50s} -> FAILED: {e}')
                 """;
 
         SandboxRunner.runPythonUnsandboxed("Write to data/ and /tmp", unsandboxedScript);
 
-        // ── Sandboxed ─────────────────────────────────────────────────────────
+        // - Sandboxed -
         String sandboxedScript = """
                 import datetime
                 tag = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
@@ -58,9 +58,9 @@ public class FilesystemDemo {
                     try:
                         with open(path, 'w') as f:
                             f.write('written by sandboxed process\\n')
-                        print(f'  WRITE {desc} → OK  ← should only happen for /sandbox-data')
+                        print(f'  WRITE {desc} -> OK  <- should only happen for /sandbox-data')
                     except Exception as e:
-                        print(f'  WRITE {desc} → BLOCKED ({type(e).__name__})')
+                        print(f'  WRITE {desc} -> BLOCKED ({type(e).__name__})')
                 """;
 
         List<String> extraMounts = List.of(
@@ -76,7 +76,7 @@ public class FilesystemDemo {
                 "none"   // no network needed
         );
 
-        System.out.println("\n── data/ contents after demo ──");
+        System.out.println("\n-- data/ contents after demo --");
         SandboxRunner.exec("ls", "-1", "data/");
     }
 }

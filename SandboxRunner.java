@@ -7,7 +7,7 @@ import java.util.*;
  */
 public class SandboxRunner {
 
-    // ── Public API ────────────────────────────────────────────────────────────
+    // - Public API -
 
     /**
      * Run a command unsandboxed (plain OS process).
@@ -73,7 +73,7 @@ public class SandboxRunner {
         }
     }
 
-    // ── OCI config.json builder ───────────────────────────────────────────────
+    // - OCI config.json builder -
 
     private static String buildConfig(
             String script,
@@ -93,7 +93,7 @@ public class SandboxRunner {
                 """
                 {"destination":"/proc","type":"proc","source":"proc","options":[]},
                 {"destination":"/dev","type":"tmpfs","source":"tmpfs","options":["mode=755"]},
-                {"destination":"/tmp","type":"tmpfs","source":"tmpfs","options":["mode=1777"]},
+                {"destination":"/tmp","type":"tmpfs","source":"tmpfs","options":["mode=555","ro"]},
                 {"destination":"/sys","type":"sysfs","source":"sysfs","options":["ro"]}
                 """
         ));
@@ -142,7 +142,7 @@ public class SandboxRunner {
                         netNs);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // - Helpers -
 
     static String mount(String dest, String src, String type, String options) {
         String[] opts = options.split(",");

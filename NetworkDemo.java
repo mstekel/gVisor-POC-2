@@ -4,17 +4,17 @@ import java.util.List;
 import java.util.concurrent.*;
 
 /**
- * Demo 3 — Network Restriction (localhost only)
+ * Demo 3 - Network Restriction (localhost only)
  *
  * A Java echo server listens on localhost:19876 for the duration of this demo.
  *
- * Unsandboxed: connects to localhost:19876  → succeeds.
- *              connects to 8.8.8.8:53       → succeeds (or times out, proving
+ * Unsandboxed: connects to localhost:19876  -> succeeds.
+ *              connects to 8.8.8.8:53       -> succeeds (or times out, proving
  *              the syscall was reachable).
  *
  * Sandboxed:   gVisor runs with --network=none, so ALL network syscalls are
  *              intercepted and return ENETDOWN. Both connections fail, which
- *              demonstrates that even localhost is blocked — the sandbox has
+ *              demonstrates that even localhost is blocked - the sandbox has
  *              no network stack at all.
  *
  * Note: allowing *only* localhost while blocking external IPs requires
@@ -31,9 +31,9 @@ public class NetworkDemo {
     private static final int    TIMEOUT_MS   = 3000;
 
     public void run() throws Exception {
-        System.out.println("╔══════════════════════════════════════════╗");
-        System.out.println("║  Demo 3: Network Restriction             ║");
-        System.out.println("╚══════════════════════════════════════════╝");
+        System.out.println("+------------------------------------------+");
+        System.out.println("|  Demo 3: Network Restriction             |");
+        System.out.println("+------------------------------------------+");
         System.out.println("Unsandboxed: localhost + external both reachable.");
         System.out.println("Sandboxed:   --network=none blocks all sockets.");
 
@@ -44,20 +44,20 @@ public class NetworkDemo {
         try {
             String script = buildScript();
 
-            // ── Unsandboxed ───────────────────────────────────────────────────
+            // - Unsandboxed -
             SandboxRunner.runPythonUnsandboxed(
                     "Connect to localhost:" + ECHO_PORT + " and " + EXTERNAL_IP + ":" + EXTERNAL_PORT,
                     script);
 
-            // ── Sandboxed ─────────────────────────────────────────────────────
+            // - Sandboxed -
             // --network=none: gVisor provides no network stack at all.
             // Socket syscalls (connect, bind, etc.) return ENETDOWN immediately.
             SandboxRunner.runPythonSandboxed(
-                    "Same connections — all blocked by --network=none",
+                    "Same connections - all blocked by --network=none",
                     script,
                     List.of(),  // no extra mounts
                     null,       // no seccomp (network=none handles it)
-                    "none"      // ← this is the key restriction
+                    "none"      // <- this is the key restriction
             );
 
         } finally {
@@ -66,7 +66,7 @@ public class NetworkDemo {
         }
     }
 
-    // ── Echo server ───────────────────────────────────────────────────────────
+    // - Echo server -
 
     private ServerSocket startEchoServer(ExecutorService pool) throws IOException {
         ServerSocket ss = new ServerSocket(ECHO_PORT, 10,
@@ -91,7 +91,7 @@ public class NetworkDemo {
         return ss;
     }
 
-    // ── Python script ─────────────────────────────────────────────────────────
+    // - Python script -
 
     private String buildScript() {
         return """
@@ -110,12 +110,12 @@ public class NetworkDemo {
                         if host == '127.0.0.1':
                             s.sendall(b'hello\\n')
                             reply = s.recv(64).decode().strip()
-                            print(f'  CONNECT {label} → OK  reply={reply!r}')
+                            print(f'  CONNECT {label} -> OK  reply={reply!r}')
                         else:
-                            print(f'  CONNECT {label} → OK  (socket reached external host)')
+                            print(f'  CONNECT {label} -> OK  (socket reached external host)')
                         s.close()
                     except OSError as e:
-                        print(f'  CONNECT {label} → BLOCKED ({e.strerror})')
+                        print(f'  CONNECT {label} -> BLOCKED ({e.strerror})')
                 """.formatted(
                         ECHO_PORT, ECHO_PORT,
                         EXTERNAL_IP, EXTERNAL_PORT, EXTERNAL_IP, EXTERNAL_PORT,

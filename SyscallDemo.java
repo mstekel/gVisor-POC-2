@@ -1,7 +1,7 @@
 import java.util.List;
 
 /**
- * Demo 2 — Syscall Restriction (perf_event_open)
+ * Demo 2 - Syscall Restriction (perf_event_open)
  *
  * perf_event_open (syscall #298 on x86_64) opens a file descriptor for
  * performance monitoring. It has a long history of kernel vulnerabilities
@@ -9,17 +9,17 @@ import java.util.List;
  * and is a common first step in local privilege escalation exploits.
  *
  * Unsandboxed: perf_event_open returns a valid fd (or ENOENT in a container
- *              without hardware counters) — the syscall is reachable.
- * Sandboxed:   gVisor's seccomp filter returns EPERM — the syscall is blocked
+ *              without hardware counters) - the syscall is reachable.
+ * Sandboxed:   gVisor's seccomp filter returns EPERM - the syscall is blocked
  *              before it ever touches the host kernel.
  */
 public class SyscallDemo {
 
     public void run() {
-        System.out.println("╔══════════════════════════════════════════╗");
-        System.out.println("║  Demo 2: Syscall Restriction             ║");
-        System.out.println("║  Blocking: perf_event_open (syscall 298) ║");
-        System.out.println("╚══════════════════════════════════════════╝");
+        System.out.println("+------------------------------------------+");
+        System.out.println("|  Demo 2: Syscall Restriction             |");
+        System.out.println("|  Blocking: perf_event_open (syscall 298) |");
+        System.out.println("+------------------------------------------+");
         System.out.println("perf_event_open is a historically vulnerable kernel API.");
         System.out.println("Sandboxed process will be blocked from calling it.");
 
@@ -42,25 +42,25 @@ public class SyscallDemo {
                 err = ctypes.get_errno()
 
                 if fd >= 0:
-                    print(f'  perf_event_open → fd={fd}  (syscall REACHED the kernel)')
+                    print(f'  perf_event_open -> fd={fd}  (syscall REACHED the kernel)')
                     os.close(fd)
                 elif err == 1:   # EPERM
-                    print(f'  perf_event_open → EPERM   (syscall BLOCKED before kernel)')
-                elif err == 2:   # ENOENT — allowed but no hardware counters in container
-                    print(f'  perf_event_open → ENOENT  (syscall REACHED the kernel; no hw counters here)')
+                    print(f'  perf_event_open -> EPERM   (syscall BLOCKED before kernel)')
+                elif err == 2:   # ENOENT - allowed but no hardware counters in container
+                    print(f'  perf_event_open -> ENOENT  (syscall REACHED the kernel; no hw counters here)')
                 elif err == 22:  # EINVAL
-                    print(f'  perf_event_open → EINVAL  (syscall REACHED the kernel)')
+                    print(f'  perf_event_open -> EINVAL  (syscall REACHED the kernel)')
                 else:
-                    print(f'  perf_event_open → errno={err} ({os.strerror(err)})')
+                    print(f'  perf_event_open -> errno={err} ({os.strerror(err)})')
                 """;
 
-        // ── Unsandboxed ───────────────────────────────────────────────────────
+        // - Unsandboxed -
         SandboxRunner.runPythonUnsandboxed(
                 "Call perf_event_open directly", script);
 
-        // ── Sandboxed — seccomp blocks perf_event_open ────────────────────────
+        // - Sandboxed - seccomp blocks perf_event_open -
         // OCI seccomp profile: default action = SCMP_ACT_ALLOW,
-        // but perf_event_open (298) → SCMP_ACT_ERRNO(EPERM)
+        // but perf_event_open (298) -> SCMP_ACT_ERRNO(EPERM)
         String seccomp = """
                 {
                   "defaultAction": "SCMP_ACT_ALLOW",
