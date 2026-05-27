@@ -13,7 +13,7 @@ public class SandboxRunner {
      * Run a command unsandboxed (plain OS process).
      */
     public static void runUnsandboxed(String label, String... cmd) {
-        System.out.println("\n[UNSANDBOXED] " + label);
+        System.out.println("\n\n\n[UNSANDBOXED] " + label);
         exec(cmd);
     }
 
@@ -40,7 +40,7 @@ public class SandboxRunner {
             String seccomp,
             String networkMode
     ) {
-        System.out.println("\n[SANDBOXED]   " + label);
+        System.out.println("\n\n\n[SANDBOXED]   " + label);
         try {
             long pid       = ProcessHandle.current().pid();
             String tmpRoot = "/tmp/runsc-root-" + pid;

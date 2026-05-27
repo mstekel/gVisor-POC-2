@@ -76,7 +76,7 @@ public class FilesystemDemo {
                 "none"   // no network needed
         );
 
-        System.out.println("\n-- data/ contents after demo --");
+        System.out.println("\n\n\n-- data/ contents after demo --");
         SandboxRunner.exec("ls", "-1", "data/");
     }
 }

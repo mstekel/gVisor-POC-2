@@ -71,12 +71,12 @@ public class NetworkDemo {
     // -- Network namespace setup ----------------------------------------------
 
     private void setupNetns() {
-        System.out.println("\n[netns] Setting up veth pair and iptables rules...");
+        //System.out.println("\n[netns] Setting up veth pair and iptables rules...");
         SandboxRunner.exec("bash", SETUP_SCRIPT, NETNS_NAME, "create");
     }
 
     private void destroyNetns() {
-        System.out.println("\n[netns] Tearing down...");
+        //System.out.println("\n[netns] Tearing down...");
         SandboxRunner.exec("bash", SETUP_SCRIPT, NETNS_NAME, "destroy");
     }
 
