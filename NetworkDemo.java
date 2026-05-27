@@ -208,7 +208,8 @@ public class NetworkDemo {
                         print(f'  CONNECT {label} -> OK    reply={reply!r}')
                         s.close()
                     except OSError as e:
-                        print(f'  CONNECT {label} -> BLOCKED ({e.strerror})')
+                        err_msg = e.strerror or f'timed out after {%d}ms'
+                        print(f'  CONNECT {label} -> BLOCKED ({err_msg})')
                 """.formatted(
                 LOOPBACK_IP, ECHO_PORT,    LOOPBACK_IP, ECHO_PORT,
                 EXTERNAL_IP, EXTERNAL_PORT, EXTERNAL_IP, EXTERNAL_PORT,
@@ -235,7 +236,8 @@ public class NetworkDemo {
                         print(f'  CONNECT {label} -> OK    reply={reply!r}')
                         s.close()
                     except OSError as e:
-                        print(f'  CONNECT {label} -> BLOCKED ({e.strerror})')
+                        err_msg = e.strerror or f'timed out after {%d}ms'
+                        print(f'  CONNECT {label} -> BLOCKED ({err_msg})')
                 """.formatted(
                 HOST_IP,     ECHO_PORT,    HOST_IP,     ECHO_PORT,
                 EXTERNAL_IP, EXTERNAL_PORT, EXTERNAL_IP, EXTERNAL_PORT,
