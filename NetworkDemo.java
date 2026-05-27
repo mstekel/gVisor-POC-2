@@ -107,6 +107,7 @@ public class NetworkDemo {
                 "run",
                 "--bundle", bundle,
                 "sandbox-net-" + pid);
+        System.out.println("\n\n\n");
     }
 
     // -- OCI config with pinned network namespace -----------------------------
