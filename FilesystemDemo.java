@@ -27,7 +27,7 @@ public class FilesystemDemo {
         System.out.println("\n\n\n+------------------------------------------+");
         System.out.println("|  Demo 1: Filesystem Restriction          |");
         System.out.println("+------------------------------------------+");
-        System.out.println("Sandbox may only write to the data/ folder.");
+        System.out.println("Sandbox may only read/write the data/ folder; host /etc is hidden.");
 
         new File("data").mkdirs();
         String dataAbs = new File("data").getAbsolutePath();
