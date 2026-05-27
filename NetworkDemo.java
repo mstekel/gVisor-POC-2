@@ -1,64 +1,63 @@
 import java.io.*;
 import java.net.*;
+import java.nio.file.*;
 import java.util.List;
 import java.util.concurrent.*;
 
 /**
- * Demo 3 - Network Restriction (localhost only)
+ * Demo 3 - Network Restriction (localhost only via veth)
  *
- * A Java echo server listens on localhost:19876 for the duration of this demo.
+ * Architecture:
  *
- * Unsandboxed: connects to localhost:19876  -> succeeds.
- *              connects to 8.8.8.8:53       -> succeeds (or times out, proving
- *              the syscall was reachable).
+ *   Host side                        Sandbox side
+ *   ---------                        ------------
+ *   veth-host (10.0.0.1)  <------>  veth-sb (10.0.0.2)
  *
- * Sandboxed:   gVisor runs with --network=none, so ALL network syscalls are
- *              intercepted and return ENETDOWN. Both connections fail, which
- *              demonstrates that even localhost is blocked - the sandbox has
- *              no network stack at all.
+ *   Java echo server @ 10.0.0.1:19876
  *
- * Note: allowing *only* localhost while blocking external IPs requires
- * combining --network=sandbox with host-level iptables rules (outside the
- * scope of a self-contained demo). Here we show the two extremes:
- *   unsandboxed  = full network access
- *   sandboxed    = zero network access (--network=none)
+ *   iptables:
+ *     ALLOW  sandbox -> 10.0.0.1:19876  (echo server)
+ *     DROP   sandbox -> everything else (blocks external internet)
+ *
+ * Unsandboxed: connects to echo server (10.0.0.1) and external (8.8.8.8) - both succeed.
+ * Sandboxed:   connects to echo server (10.0.0.1) - succeeds via veth.
+ *              connects to external    (8.8.8.8)  - blocked by iptables DROP rule.
  */
 public class NetworkDemo {
 
-    private static final int    ECHO_PORT    = 19876;
-    private static final String EXTERNAL_IP  = "8.8.8.8";
+    private static final String HOST_IP       = "10.0.0.1";
+    private static final String SANDBOX_IP    = "10.0.0.2";
+    private static final String EXTERNAL_IP   = "8.8.8.8";
+    private static final int    ECHO_PORT     = 19876;
     private static final int    EXTERNAL_PORT = 53;
-    private static final int    TIMEOUT_MS   = 3000;
+    private static final int    TIMEOUT_MS    = 3000;
+    private static final String NETNS_NAME    = "gvisor-demo-ns";
+    private static final String SETUP_SCRIPT  = "./setup-netns.sh";
 
     public void run() throws Exception {
         System.out.println("+------------------------------------------+");
         System.out.println("|  Demo 3: Network Restriction             |");
+        System.out.println("|  Sandbox: veth only, external blocked    |");
         System.out.println("+------------------------------------------+");
-        System.out.println("Unsandboxed: localhost + external both reachable.");
-        System.out.println("Sandboxed:   --network=none blocks all sockets.");
+        System.out.println("Sandbox may only reach 10.0.0.1 (host veth).");
+        System.out.println("External traffic is dropped by iptables.");
 
-        // Start a local echo server so localhost tests are self-contained
         ExecutorService serverPool = Executors.newSingleThreadExecutor();
         ServerSocket serverSocket  = startEchoServer(serverPool);
 
         try {
+            // -- Unsandboxed --------------------------------------------------
             String script = buildScript();
-
-            // - Unsandboxed -
             SandboxRunner.runPythonUnsandboxed(
-                    "Connect to localhost:" + ECHO_PORT + " and " + EXTERNAL_IP + ":" + EXTERNAL_PORT,
-                    script);
+                    "Connect to echo server and external IP", script);
 
-            // - Sandboxed -
-            // --network=none: gVisor provides no network stack at all.
-            // Socket syscalls (connect, bind, etc.) return ENETDOWN immediately.
-            SandboxRunner.runPythonSandboxed(
-                    "Same connections - all blocked by --network=none",
-                    script,
-                    List.of(),  // no extra mounts
-                    null,       // no seccomp (network=none handles it)
-                    "none"      // <- this is the key restriction
-            );
+            // -- Sandboxed ----------------------------------------------------
+            setupNetns();
+            try {
+                runSandboxed(script);
+            } finally {
+                destroyNetns();
+            }
 
         } finally {
             serverSocket.close();
@@ -66,19 +65,116 @@ public class NetworkDemo {
         }
     }
 
-    // - Echo server -
+    // -- Network namespace setup ----------------------------------------------
+
+    private void setupNetns() {
+        System.out.println("\n[netns] Setting up veth pair and iptables rules...");
+        SandboxRunner.exec("bash", SETUP_SCRIPT, NETNS_NAME, "create");
+    }
+
+    private void destroyNetns() {
+        System.out.println("\n[netns] Tearing down veth pair and iptables rules...");
+        SandboxRunner.exec("bash", SETUP_SCRIPT, NETNS_NAME, "destroy");
+    }
+
+    // -- Sandboxed run --------------------------------------------------------
+
+    private void runSandboxed(String script) throws Exception {
+        long   pid      = ProcessHandle.current().pid();
+        String tmpRoot  = "/tmp/runsc-root-" + pid;
+        String bundle   = "/tmp/bundle-net-" + pid;
+        String rootfs   = bundle + "/rootfs";
+
+        for (String d : new String[]{
+                "usr","lib","lib64","bin","etc","proc","sys","dev","tmp"}) {
+            new File(rootfs + "/" + d).mkdirs();
+        }
+        new File(tmpRoot).mkdirs();
+
+        // Pin the sandbox into the pre-created network namespace so it shares
+        // the veth interface we configured, instead of getting a blank namespace.
+        String netnsPath = "/var/run/netns/" + NETNS_NAME;
+
+        String config = buildNetworkConfig(script, netnsPath);
+        Files.writeString(Path.of(bundle + "/config.json"), config);
+
+        System.out.println("\n[SANDBOXED]   Connect via veth (allowed) and external (blocked)");
+        SandboxRunner.exec(
+                "runsc",
+                "--root",           tmpRoot,
+                "--ignore-cgroups",
+                "--platform=ptrace",
+                "run",
+                "--bundle", bundle,
+                "sandbox-net-" + pid);
+    }
+
+    // -- OCI config with pinned network namespace -----------------------------
+
+    private String buildNetworkConfig(String script, String netnsPath) {
+        String escaped = SandboxRunner.escapeJson(script);
+        return """
+                {
+                  "ociVersion": "1.0.0",
+                  "process": {
+                    "terminal": false,
+                    "user": { "uid": 0, "gid": 0 },
+                    "args": ["python3", "-c", "%s"],
+                    "env": [
+                      "PATH=/usr/bin:/usr/local/bin:/bin",
+                      "HOME=/tmp",
+                      "PYTHONPATH=/usr/lib/python3.12:/usr/lib/python3"
+                    ],
+                    "cwd": "/tmp"
+                  },
+                  "root": { "path": "rootfs", "readonly": true },
+                  "mounts": [
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    {"destination":"/proc","type":"proc","source":"proc","options":[]},
+                    {"destination":"/dev","type":"tmpfs","source":"tmpfs","options":["mode=755"]},
+                    {"destination":"/tmp","type":"tmpfs","source":"tmpfs","options":["mode=555","ro"]},
+                    {"destination":"/sys","type":"sysfs","source":"sysfs","options":["ro"]}
+                  ],
+                  "linux": {
+                    "namespaces": [
+                      { "type": "pid"   },
+                      { "type": "mount" },
+                      { "type": "ipc"   },
+                      { "type": "uts"   },
+                      { "type": "network", "path": "%s" }
+                    ]
+                  }
+                }
+                """.formatted(
+                escaped,
+                SandboxRunner.mount("/usr",   "/usr",   "bind", "rbind,ro"),
+                SandboxRunner.mount("/lib",   "/lib",   "bind", "rbind,ro"),
+                SandboxRunner.mount("/lib64", "/lib64", "bind", "rbind,ro"),
+                SandboxRunner.mount("/bin",   "/bin",   "bind", "rbind,ro"),
+                SandboxRunner.mount("/etc",   "/etc",   "bind", "rbind,ro"),
+                netnsPath);
+    }
+
+    // -- Echo server ----------------------------------------------------------
 
     private ServerSocket startEchoServer(ExecutorService pool) throws IOException {
+        // Bind to all interfaces so it's reachable via veth (10.0.0.1) too
         ServerSocket ss = new ServerSocket(ECHO_PORT, 10,
-                InetAddress.getByName("127.0.0.1"));
+                InetAddress.getByName("0.0.0.0"));
         pool.submit(() -> {
             while (!ss.isClosed()) {
                 try {
                     Socket client = ss.accept();
                     new Thread(() -> {
                         try (client;
-                             var in  = new BufferedReader(new InputStreamReader(client.getInputStream()));
-                             var out = new PrintWriter(client.getOutputStream(), true)) {
+                             var in  = new BufferedReader(
+                                     new InputStreamReader(client.getInputStream()));
+                             var out = new PrintWriter(
+                                     client.getOutputStream(), true)) {
                             String line;
                             while ((line = in.readLine()) != null)
                                 out.println("ECHO: " + line);
@@ -87,19 +183,19 @@ public class NetworkDemo {
                 } catch (IOException ignored) {}
             }
         });
-        System.out.println("\n  [Echo server listening on localhost:" + ECHO_PORT + "]");
+        System.out.println("\n  [Echo server listening on 0.0.0.0:" + ECHO_PORT + "]");
         return ss;
     }
 
-    // - Python script -
+    // -- Python script --------------------------------------------------------
 
     private String buildScript() {
         return """
                 import socket
 
                 targets = [
-                    ('127.0.0.1', %d, 'localhost:%d (echo server)'),
-                    ('%s',        %d, '%s:%d    (external DNS)  '),
+                    ('%s', %d, 'host veth %s:%d  (echo server)'),
+                    ('%s', %d, 'external  %s:%d  (DNS)        '),
                 ]
 
                 for host, port, label in targets:
@@ -107,18 +203,15 @@ public class NetworkDemo {
                     s.settimeout(%d / 1000)
                     try:
                         s.connect((host, port))
-                        if host == '127.0.0.1':
-                            s.sendall(b'hello\\n')
-                            reply = s.recv(64).decode().strip()
-                            print(f'  CONNECT {label} -> OK  reply={reply!r}')
-                        else:
-                            print(f'  CONNECT {label} -> OK  (socket reached external host)')
+                        s.sendall(b'hello\\n')
+                        reply = s.recv(64).decode().strip()
+                        print(f'  CONNECT {label} -> OK    reply={reply!r}')
                         s.close()
                     except OSError as e:
                         print(f'  CONNECT {label} -> BLOCKED ({e.strerror})')
                 """.formatted(
-                        ECHO_PORT, ECHO_PORT,
-                        EXTERNAL_IP, EXTERNAL_PORT, EXTERNAL_IP, EXTERNAL_PORT,
-                        TIMEOUT_MS);
+                HOST_IP,    ECHO_PORT,    HOST_IP,    ECHO_PORT,
+                EXTERNAL_IP, EXTERNAL_PORT, EXTERNAL_IP, EXTERNAL_PORT,
+                TIMEOUT_MS);
     }
 }
