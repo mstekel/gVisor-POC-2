@@ -5,28 +5,28 @@ import java.util.List;
 import java.util.concurrent.*;
 
 /**
- * Demo 3 - Network Restriction (localhost only via veth)
+ * Demo 3 - Network Restriction (veth + iptables)
  *
  * Architecture:
  *
- *   Host side                        Sandbox side
+ *   Host side                        Sandbox side (netns: gvisor-demo-ns)
  *   ---------                        ------------
- *   veth-host (10.0.0.1)  <------>  veth-sb (10.0.0.2)
+ *   veth-host @ 10.0.0.1  <------>  veth-sb @ 10.0.0.2
  *
- *   Java echo server @ 10.0.0.1:19876
+ *   Java echo server @ 0.0.0.0:19876
  *
  *   iptables:
  *     ALLOW  sandbox -> 10.0.0.1:19876  (echo server)
  *     DROP   sandbox -> everything else (blocks external internet)
  *
- * Unsandboxed: connects to echo server (10.0.0.1) and external (8.8.8.8) - both succeed.
- * Sandboxed:   connects to echo server (10.0.0.1) - succeeds via veth.
- *              connects to external    (8.8.8.8)  - blocked by iptables DROP rule.
+ * Unsandboxed: uses 127.0.0.1 (veth not yet set up) + 8.8.8.8 - both succeed.
+ * Sandboxed:   uses 10.0.0.1 (host veth) - succeeds.
+ *              uses 8.8.8.8  (external)  - blocked by iptables DROP.
  */
 public class NetworkDemo {
 
+    private static final String LOOPBACK_IP   = "127.0.0.1";
     private static final String HOST_IP       = "10.0.0.1";
-    private static final String SANDBOX_IP    = "10.0.0.2";
     private static final String EXTERNAL_IP   = "8.8.8.8";
     private static final int    ECHO_PORT     = 19876;
     private static final int    EXTERNAL_PORT = 53;
@@ -47,14 +47,17 @@ public class NetworkDemo {
 
         try {
             // -- Unsandboxed --------------------------------------------------
-            String script = buildScript();
+            // Veth not set up yet, so reach echo server via 127.0.0.1.
+            // Also test external to show full unrestricted access.
             SandboxRunner.runPythonUnsandboxed(
-                    "Connect to echo server and external IP", script);
+                    "Connect to echo server (127.0.0.1) and external IP",
+                    buildUnsandboxedScript());
 
             // -- Sandboxed ----------------------------------------------------
+            // Set up veth + iptables, then run sandbox pinned to that netns.
             setupNetns();
             try {
-                runSandboxed(script);
+                runSandboxed(buildSandboxedScript());
             } finally {
                 destroyNetns();
             }
@@ -73,17 +76,17 @@ public class NetworkDemo {
     }
 
     private void destroyNetns() {
-        System.out.println("\n[netns] Tearing down veth pair and iptables rules...");
+        System.out.println("\n[netns] Tearing down...");
         SandboxRunner.exec("bash", SETUP_SCRIPT, NETNS_NAME, "destroy");
     }
 
     // -- Sandboxed run --------------------------------------------------------
 
     private void runSandboxed(String script) throws Exception {
-        long   pid      = ProcessHandle.current().pid();
-        String tmpRoot  = "/tmp/runsc-root-" + pid;
-        String bundle   = "/tmp/bundle-net-" + pid;
-        String rootfs   = bundle + "/rootfs";
+        long   pid     = ProcessHandle.current().pid();
+        String tmpRoot = "/tmp/runsc-root-" + pid;
+        String bundle  = "/tmp/bundle-net-" + pid;
+        String rootfs  = bundle + "/rootfs";
 
         for (String d : new String[]{
                 "usr","lib","lib64","bin","etc","proc","sys","dev","tmp"}) {
@@ -91,11 +94,8 @@ public class NetworkDemo {
         }
         new File(tmpRoot).mkdirs();
 
-        // Pin the sandbox into the pre-created network namespace so it shares
-        // the veth interface we configured, instead of getting a blank namespace.
         String netnsPath = "/var/run/netns/" + NETNS_NAME;
-
-        String config = buildNetworkConfig(script, netnsPath);
+        String config    = buildNetworkConfig(script, netnsPath);
         Files.writeString(Path.of(bundle + "/config.json"), config);
 
         System.out.println("\n[SANDBOXED]   Connect via veth (allowed) and external (blocked)");
@@ -162,7 +162,6 @@ public class NetworkDemo {
     // -- Echo server ----------------------------------------------------------
 
     private ServerSocket startEchoServer(ExecutorService pool) throws IOException {
-        // Bind to all interfaces so it's reachable via veth (10.0.0.1) too
         ServerSocket ss = new ServerSocket(ECHO_PORT, 10,
                 InetAddress.getByName("0.0.0.0"));
         pool.submit(() -> {
@@ -187,9 +186,37 @@ public class NetworkDemo {
         return ss;
     }
 
-    // -- Python script --------------------------------------------------------
+    // -- Python scripts -------------------------------------------------------
 
-    private String buildScript() {
+    /** Unsandboxed: reach echo server via loopback, then try external. */
+    private String buildUnsandboxedScript() {
+        return """
+                import socket
+
+                targets = [
+                    ('%s', %d, 'loopback  %s:%d  (echo server)'),
+                    ('%s', %d, 'external  %s:%d  (DNS)        '),
+                ]
+
+                for host, port, label in targets:
+                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    s.settimeout(%d / 1000)
+                    try:
+                        s.connect((host, port))
+                        s.sendall(b'hello\\n')
+                        reply = s.recv(64).decode().strip()
+                        print(f'  CONNECT {label} -> OK    reply={reply!r}')
+                        s.close()
+                    except OSError as e:
+                        print(f'  CONNECT {label} -> BLOCKED ({e.strerror})')
+                """.formatted(
+                LOOPBACK_IP, ECHO_PORT,    LOOPBACK_IP, ECHO_PORT,
+                EXTERNAL_IP, EXTERNAL_PORT, EXTERNAL_IP, EXTERNAL_PORT,
+                TIMEOUT_MS);
+    }
+
+    /** Sandboxed: reach echo server via veth (10.0.0.1), external must fail. */
+    private String buildSandboxedScript() {
         return """
                 import socket
 
@@ -210,7 +237,7 @@ public class NetworkDemo {
                     except OSError as e:
                         print(f'  CONNECT {label} -> BLOCKED ({e.strerror})')
                 """.formatted(
-                HOST_IP,    ECHO_PORT,    HOST_IP,    ECHO_PORT,
+                HOST_IP,     ECHO_PORT,    HOST_IP,     ECHO_PORT,
                 EXTERNAL_IP, EXTERNAL_PORT, EXTERNAL_IP, EXTERNAL_PORT,
                 TIMEOUT_MS);
     }
