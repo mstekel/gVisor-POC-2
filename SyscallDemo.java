@@ -41,15 +41,23 @@ public class SyscallDemo {
                 fd = libc.syscall(SYS_perf_event_open, attr, 0, -1, -1, 0)
                 err = ctypes.get_errno()
 
+                REACHED = 'syscall REACHED the host kernel'
+                BLOCKED = 'syscall BLOCKED - never reached host kernel'
+
                 if fd >= 0:
-                    print(f'  perf_event_open -> fd={fd}  (syscall REACHED the kernel)')
+                    # Got a real file descriptor - kernel accepted the call
+                    print(f'  perf_event_open -> fd={fd}  ({REACHED})')
                     os.close(fd)
-                elif err == 1:   # EPERM
-                    print(f'  perf_event_open -> EPERM   (syscall BLOCKED before kernel)')
-                elif err == 2:   # ENOENT - allowed but no hardware counters in container
-                    print(f'  perf_event_open -> ENOENT  (syscall REACHED the kernel; no hw counters here)')
-                elif err == 22:  # EINVAL
-                    print(f'  perf_event_open -> EINVAL  (syscall REACHED the kernel)')
+                elif err == 1:    # EPERM  - seccomp denied it
+                    print(f'  perf_event_open -> EPERM   ({BLOCKED} - seccomp filter)')
+                elif err == 19:   # ENODEV - gVisor intercepted, not implemented in gVisor
+                    print(f'  perf_event_open -> ENODEV  ({BLOCKED} - gVisor does not implement this syscall)')
+                elif err == 38:   # ENOSYS - syscall not known at all
+                    print(f'  perf_event_open -> ENOSYS  ({BLOCKED} - syscall not available)')
+                elif err == 2:    # ENOENT - reached kernel, no hw counters in container
+                    print(f'  perf_event_open -> ENOENT  ({REACHED}, but no hardware counters here)')
+                elif err == 22:   # EINVAL - reached kernel, invalid args
+                    print(f'  perf_event_open -> EINVAL  ({REACHED})')
                 else:
                     print(f'  perf_event_open -> errno={err} ({os.strerror(err)})')
                 """;
