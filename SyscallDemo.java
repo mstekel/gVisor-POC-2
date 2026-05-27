@@ -136,5 +136,6 @@ public class SyscallDemo {
         SandboxRunner.exec("hostname", originalHostname);
         SandboxRunner.runPythonSandboxed(  "sethostname sandboxed (seccomp blocks it)",
                 script, List.of(), seccomp, "none");
+        System.out.println("\n\n\n");
     }
 }
