@@ -6,13 +6,17 @@ import java.util.List;
 /**
  * Demo 1 - Filesystem Restriction
  *
- * The sandboxed process may only read/write the "data/" folder.
- * Any attempt to write outside it (e.g. /tmp, /usr) is blocked.
+ * The sandboxed process may only read/write the "data/" folder, and
+ * only read the system paths needed to run Python (/usr, /lib, /lib64, /bin).
+ * Sensitive host paths like /etc are not visible at all.
  *
- * Unsandboxed: writes to data/ and /tmp  -> both succeed.
- * Sandboxed:   writes to data/           -> succeeds (bind-mounted rw).
- *              writes to /tmp            -> fails    (read-only tmpfs).
- *              writes to /usr            -> fails    (read-only bind mount).
+ * Unsandboxed: writes to data/ and /tmp        -> both succeed.
+ *              reads  /etc/passwd              -> succeeds.
+ * Sandboxed:   writes to /sandbox-data         -> succeeds (bind-mounted rw).
+ *              writes to /tmp                  -> fails    (read-only tmpfs).
+ *              writes to /usr                  -> fails    (read-only bind mount).
+ *              reads  /sandbox-data            -> succeeds.
+ *              reads  /etc/passwd              -> fails    (no /etc in sandbox).
  */
 public class FilesystemDemo {
 
@@ -40,27 +44,47 @@ public class FilesystemDemo {
                         print(f'  WRITE {path:50s} -> OK')
                     except Exception as e:
                         print(f'  WRITE {path:50s} -> FAILED: {e}')
+
+                for path in ['/etc/passwd']:
+                    try:
+                        with open(path) as f:
+                            data = f.read()
+                        print(f'  READ  {path:50s} -> OK ({len(data)} bytes)')
+                    except Exception as e:
+                        print(f'  READ  {path:50s} -> FAILED ({type(e).__name__})')
                 """;
 
-        SandboxRunner.runPythonUnsandboxed("Write to data/ and /tmp", unsandboxedScript);
+        SandboxRunner.runPythonUnsandboxed("Read/Write to data/, /tmp, /etc/passwd", unsandboxedScript);
 
         // - Sandboxed -
         String sandboxedScript = """
                 import datetime
                 tag = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
-                paths = [
+                write_paths = [
                     ('/sandbox-data/sandboxed_' + tag + '.txt', 'allowed folder  (/sandbox-data)'),
                     ('/tmp/sandboxed_'           + tag + '.txt', 'temp folder     (/tmp)          '),
                     ('/usr/sandboxed_'           + tag + '.txt', 'system folder   (/usr)          '),
                 ]
-                for path, desc in paths:
+                for path, desc in write_paths:
                     try:
                         with open(path, 'w') as f:
                             f.write('written by sandboxed process\\n')
                         print(f'  WRITE {desc} -> OK  <- should only happen for /sandbox-data')
                     except Exception as e:
                         print(f'  WRITE {desc} -> BLOCKED ({type(e).__name__})')
+
+                read_paths = [
+                    ('/sandbox-data/sandboxed_' + tag + '.txt', 'allowed folder  (/sandbox-data)'),
+                    ('/etc/passwd',                              'system file     (/etc/passwd)   '),
+                ]
+                for path, desc in read_paths:
+                    try:
+                        with open(path) as f:
+                            data = f.read()
+                        print(f'  READ  {desc} -> OK ({len(data)} bytes)  <- should only happen for /sandbox-data')
+                    except Exception as e:
+                        print(f'  READ  {desc} -> BLOCKED ({type(e).__name__})')
                 """;
 
         List<String> extraMounts = List.of(
@@ -69,7 +93,7 @@ public class FilesystemDemo {
         );
 
         SandboxRunner.runPythonSandboxed(
-                "Write to allowed folder, /tmp, and /usr",
+                "Read/Write to allowed folder, /tmp, /usr, /etc/passwd",
                 sandboxedScript,
                 extraMounts,
                 null,    // no seccomp

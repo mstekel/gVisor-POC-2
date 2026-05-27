@@ -83,13 +83,14 @@ public class SandboxRunner {
     ) {
         String escapedScript = escapeJson(script);
 
-        // Standard read-only system mounts every sandbox needs
+        // Standard read-only system mounts every sandbox needs to run Python.
+        // /etc is intentionally NOT mounted by default — demos that need host
+        // config (e.g. NetworkDemo for /etc/resolv.conf) bind it via extraMounts.
         List<String> mounts = new ArrayList<>(List.of(
                 mount("/usr",  "/usr",  "bind", "rbind,ro"),
                 mount("/lib",  "/lib",  "bind", "rbind,ro"),
                 mount("/lib64","/lib64","bind", "rbind,ro"),
                 mount("/bin",  "/bin",  "bind", "rbind,ro"),
-                mount("/etc",  "/etc",  "bind", "rbind,ro"),
                 """
                 {"destination":"/proc","type":"proc","source":"proc","options":[]},
                 {"destination":"/dev","type":"tmpfs","source":"tmpfs","options":["mode=755"]},
