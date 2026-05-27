@@ -81,16 +81,23 @@ public class SyscallDemo {
         System.out.println("  gVisor implements it, but seccomp blocks it first.");
         System.out.println("  Attack scenario: spoof hostname-based identity checks.");
 
+        // Capture original hostname so we can restore it after the unsandboxed run
+        String originalHostname;
+        try {
+            originalHostname = java.net.InetAddress.getLocalHost().getHostName();
+        } catch (Exception e) {
+            originalHostname = "localhost";
+        }
+
         String script = """
                 import ctypes, os
 
-                def get_hostname():
-                    try:
-                        return open('/proc/sys/kernel/hostname').read().strip()
-                    except:
-                        return '(unknown)'
-
                 libc = ctypes.CDLL(None, use_errno=True)
+
+                def get_hostname():
+                    buf = ctypes.create_string_buffer(256)
+                    libc.gethostname(buf, 256)
+                    return buf.value.decode()
 
                 original = get_hostname()
                 print(f'  hostname before: {original}')
@@ -125,6 +132,8 @@ public class SyscallDemo {
                 """;
 
         SandboxRunner.runPythonUnsandboxed("sethostname unsandboxed", script);
+        // Restore hostname changed by unsandboxed run before sandboxed test
+        SandboxRunner.exec("hostname", originalHostname);
         SandboxRunner.runPythonSandboxed(  "sethostname sandboxed (seccomp blocks it)",
                 script, List.of(), seccomp, "none");
     }
