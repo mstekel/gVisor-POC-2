@@ -42,6 +42,14 @@ create)
     # top of INPUT so it wins over a host firewall's default reject (e.g. firewalld
     # on RHEL/Oracle rejects with icmp-host-prohibited -> "No route to host").
     iptables -I INPUT -s "$SANDBOX_IP" -d "$HOST_IP" -p tcp -m tcp --dport "$ECHO_PORT" -j ACCEPT
+    # On firewalld hosts the iptables INPUT rule above is NOT enough: firewalld
+    # keeps its own nftables table whose reject still fires (an ACCEPT in the
+    # iptables-nft table is not final across tables). Put the host veth in
+    # firewalld's "trusted" zone so firewalld itself accepts the allowed path.
+    # The external block stays enforced by the FORWARD DROP rule below.
+    if command -v firewall-cmd >/dev/null 2>&1 && systemctl is-active --quiet firewalld; then
+        firewall-cmd --zone=trusted --add-interface="$VETH_HOST" >/dev/null 2>&1
+    fi
     # Allow sandbox -> host echo server
     iptables -I FORWARD -s "$SANDBOX_IP" -d "$HOST_IP" -p tcp -m tcp --dport "$ECHO_PORT" -j ACCEPT
     # Allow established/related back
@@ -61,6 +69,11 @@ destroy)
     iptables -D FORWARD -s "$SANDBOX_IP" -d "$HOST_IP" -p tcp -m tcp --dport "$ECHO_PORT" -j ACCEPT 2>/dev/null
     iptables -D FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null
     iptables -D FORWARD -s "$SANDBOX_IP" ! -d "$HOST_IP" -j DROP 2>/dev/null
+
+    # Remove the host veth from firewalld's trusted zone (no-op if not added)
+    if command -v firewall-cmd >/dev/null 2>&1 && systemctl is-active --quiet firewalld; then
+        firewall-cmd --zone=trusted --remove-interface="$VETH_HOST" >/dev/null 2>&1
+    fi
 
     #echo "[netns] Removing veth pair"
     ip link del "$VETH_HOST" 2>/dev/null
