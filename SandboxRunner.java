@@ -58,11 +58,6 @@ public class SandboxRunner {
             String config = buildConfig(script, extraMounts, seccomp, networkMode);
             Files.writeString(Path.of(bundle + "/config.json"), config);
 
-            // DEBUG: capture the sandbox boot log to diagnose startup failures.
-            String debugLog = "/tmp/runsc-debug-" + pid + "/";
-            new File(debugLog).mkdirs();
-            System.out.println("  [debug log dir: " + debugLog + "]");
-
             String containerId = "sandbox-" + pid + "-" + System.nanoTime();
             exec("runsc",
                     "--root",           tmpRoot,
@@ -70,9 +65,6 @@ public class SandboxRunner {
                     "--ignore-cgroups",
                     "--platform=systrap",
                     "--network=none",   // overridden per-demo via config namespaces
-                    "--debug",
-                    "--debug-log",      debugLog,
-                    "--strace",
                     "run",
                     "--bundle", bundle,
                     containerId);

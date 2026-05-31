@@ -1,6 +1,7 @@
 import java.io.File;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -87,11 +88,15 @@ public class FilesystemDemo {
                         print(f'  READ  {desc} -> BLOCKED ({type(e).__name__})')
                 """;
 
-        List<String> extraMounts = List.of(
-                // data/ is the ONLY rw mount that reaches the real host filesystem
-                SandboxRunner.mount("/sandbox-data", dataAbs, "bind", "rbind,rw"),
-                SandboxRunner.mount("/etc/localtime", "/etc/localtime", "bind", "rbind,ro")
-        );
+        List<String> extraMounts = new ArrayList<>();
+        // data/ is the ONLY rw mount that reaches the real host filesystem
+        extraMounts.add(SandboxRunner.mount("/sandbox-data", dataAbs, "bind", "rbind,rw"));
+        // Only bind /etc/localtime when the host actually has it. gVisor aborts
+        // the entire sandbox if a bind-mount source is missing (e.g. minimal
+        // container images that ship no /etc/localtime), so guard it.
+        if (new File("/etc/localtime").exists()) {
+            extraMounts.add(SandboxRunner.mount("/etc/localtime", "/etc/localtime", "bind", "rbind,ro"));
+        }
 
         SandboxRunner.runPythonSandboxed(
                 "Read/Write to allowed folder, /tmp, /usr, /etc/passwd",

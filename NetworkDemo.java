@@ -105,20 +105,12 @@ public class NetworkDemo {
         String config    = buildNetworkConfig(script, netnsPath);
         Files.writeString(Path.of(bundle + "/config.json"), config);
 
-        // DEBUG: capture the sandbox boot log to diagnose startup failures.
-        String debugLog = "/tmp/runsc-debug-net-" + pid + "/";
-        new File(debugLog).mkdirs();
-        System.out.println("  [debug log dir: " + debugLog + "]");
-
         System.out.println("\n\n\n[SANDBOXED]   Connect via veth (allowed) and external (blocked)");
         SandboxRunner.exec(
                 "runsc",
                 "--root",           tmpRoot,
                 "--ignore-cgroups",
                 "--platform=systrap",
-                "--debug",
-                "--debug-log",      debugLog,
-                "--strace",
                 "run",
                 "--bundle", bundle,
                 "sandbox-net-" + pid);
