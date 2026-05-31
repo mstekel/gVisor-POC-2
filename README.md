@@ -45,3 +45,15 @@ Demos 1 and 2 run as an ordinary user.
 - Python 3.12
 - JDK 17+
 - Root (via `sudo`) for Demo 3 only — needed to create the netns, veth pair, and iptables rules
+
+### Running inside Docker
+
+The demos run on bare metal as-is. If running inside a Docker container, the container needs
+enough privilege for `runsc` to fork its sandbox processes (otherwise you'll see
+`fork/exec /proc/self/exe: operation not permitted`). The minimum is:
+
+```bash
+docker run --cap-add=SYS_ADMIN --security-opt=seccomp=unconfined ...
+```
+
+`--privileged` also works but grants more than necessary.
