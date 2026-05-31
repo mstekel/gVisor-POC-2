@@ -23,6 +23,24 @@ sudo java Main network      # Demo 3: block all network access (needs root)
 Demo 3 requires `sudo` because it creates a network namespace, a veth pair, and iptables rules.
 Demos 1 and 2 run as an ordinary user.
 
+### Making `runsc` reachable under `sudo`
+
+The demos invoke `runsc` as a bare command, so it must be on `PATH`. `runsc` is usually
+installed in `/usr/local/bin`, but `sudo` resets `PATH` to its `secure_path` (typically
+`/usr/sbin:/usr/bin:/sbin:/bin`), which excludes `/usr/local/bin` — so `sudo java Main network`
+fails to find `runsc`. Fix it either way:
+
+```bash
+# Option A — pass your PATH through to the sudoed process
+sudo env "PATH=$PATH" java Main network
+
+# Option B — symlink runsc into a directory already on secure_path
+sudo ln -s /usr/local/bin/runsc /usr/bin/runsc
+```
+
+Option A leaves the system untouched; Option B is a one-time setup. (Inside the container you
+run as root, so neither is needed.)
+
 ## What each demo shows
 
 ### Demo 1 — Filesystem

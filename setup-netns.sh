@@ -37,6 +37,11 @@ create)
     ip netns exec "$NETNS" ip route add default via "$HOST_IP"
 
     #echo "[netns] Adding iptables rules"
+    # Allow sandbox -> host echo server. This reaches a *local* host address
+    # (10.0.0.1 on veth0), so it hits the INPUT chain, not FORWARD. Insert at the
+    # top of INPUT so it wins over a host firewall's default reject (e.g. firewalld
+    # on RHEL/Oracle rejects with icmp-host-prohibited -> "No route to host").
+    iptables -I INPUT -s "$SANDBOX_IP" -d "$HOST_IP" -p tcp -m tcp --dport "$ECHO_PORT" -j ACCEPT
     # Allow sandbox -> host echo server
     iptables -I FORWARD -s "$SANDBOX_IP" -d "$HOST_IP" -p tcp -m tcp --dport "$ECHO_PORT" -j ACCEPT
     # Allow established/related back
@@ -52,6 +57,7 @@ create)
 
 destroy)
     #echo "[netns] Removing iptables rules"
+    iptables -D INPUT -s "$SANDBOX_IP" -d "$HOST_IP" -p tcp -m tcp --dport "$ECHO_PORT" -j ACCEPT 2>/dev/null
     iptables -D FORWARD -s "$SANDBOX_IP" -d "$HOST_IP" -p tcp -m tcp --dport "$ECHO_PORT" -j ACCEPT 2>/dev/null
     iptables -D FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null
     iptables -D FORWARD -s "$SANDBOX_IP" ! -d "$HOST_IP" -j DROP 2>/dev/null
