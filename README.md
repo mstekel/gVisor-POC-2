@@ -46,6 +46,18 @@ Demos 1 and 2 run as an ordinary user.
 - JDK 17+
 - Root (via `sudo`) for Demo 3 only — needed to create the netns, veth pair, and iptables rules
 
+### Sandbox platform
+
+The demos launch `runsc` with `--platform=systrap` (gVisor's modern default). `systrap`
+nests reliably inside containers; the older `--platform=ptrace` can fail to start the
+sandbox when run nested — the symptom is:
+
+```
+cannot create sandbox: cannot read client sync file: waiting for sandbox to start: EOF
+```
+
+If you change the platform, update it in both `SandboxRunner.java` and `NetworkDemo.java`.
+
 ### Running inside Docker
 
 The demos run on bare metal as-is. If running inside a Docker container, the container needs
@@ -56,4 +68,5 @@ enough privilege for `runsc` to fork its sandbox processes (otherwise you'll see
 docker run --cap-add=SYS_ADMIN --security-opt=seccomp=unconfined ...
 ```
 
-`--privileged` also works but grants more than necessary.
+`--privileged` also works but grants more than necessary. Note that `SYS_PTRACE` is **not**
+required with the `systrap` platform, and is already included by `--privileged`.

@@ -110,7 +110,7 @@ public class NetworkDemo {
                 "runsc",
                 "--root",           tmpRoot,
                 "--ignore-cgroups",
-                "--platform=ptrace",
+                "--platform=systrap",
                 "run",
                 "--bundle", bundle,
                 "sandbox-net-" + pid);

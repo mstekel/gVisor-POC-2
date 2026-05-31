@@ -63,7 +63,7 @@ public class SandboxRunner {
                     "--root",           tmpRoot,
                     "--rootless",
                     "--ignore-cgroups",
-                    "--platform=ptrace",
+                    "--platform=systrap",
                     "--network=none",   // overridden per-demo via config namespaces
                     "run",
                     "--bundle", bundle,
