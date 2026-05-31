@@ -42,6 +42,13 @@ public class NetworkDemo {
         System.out.println("Sandbox may only reach 10.0.0.1 (host veth).");
         System.out.println("External traffic is dropped by iptables.");
 
+        if (!"root".equals(System.getProperty("user.name"))) {
+            System.out.println("\n  Demo 3 requires root: it creates a network namespace,");
+            System.out.println("  veth pair, and iptables rules. Re-run as:");
+            System.out.println("\n      sudo java Main network\n");
+            return;
+        }
+
         ExecutorService serverPool = Executors.newSingleThreadExecutor();
         ServerSocket serverSocket  = startEchoServer(serverPool);
 

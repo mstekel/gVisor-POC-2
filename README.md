@@ -15,10 +15,13 @@ mkdir -p data
 ## Running
 
 ```bash
-java Main filesystem   # Demo 1: restrict writes to one folder
-java Main syscall      # Demo 2: block perf_event_open (vulnerable kernel API)
-java Main network      # Demo 3: block all network access
+java Main filesystem        # Demo 1: restrict writes to one folder
+java Main syscall           # Demo 2: block perf_event_open (vulnerable kernel API)
+sudo java Main network      # Demo 3: block all network access (needs root)
 ```
+
+Demo 3 requires `sudo` because it creates a network namespace, a veth pair, and iptables rules.
+Demos 1 and 2 run as an ordinary user.
 
 ## What each demo shows
 
@@ -39,6 +42,6 @@ java Main network      # Demo 3: block all network access
 ## Requirements
 
 - Linux host with gVisor (`runsc`) installed
-- Docker container started with `--privileged` (required for gVisor's ptrace platform)
 - Python 3.12
 - JDK 17+
+- Root (via `sudo`) for Demo 3 only — needed to create the netns, veth pair, and iptables rules
