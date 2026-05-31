@@ -61,6 +61,7 @@ public class SandboxRunner {
             String containerId = "sandbox-" + pid + "-" + System.nanoTime();
             exec("runsc",
                     "--root",           tmpRoot,
+                    "--rootless",
                     "--ignore-cgroups",
                     "--platform=ptrace",
                     "--network=none",   // overridden per-demo via config namespaces
