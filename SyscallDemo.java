@@ -109,7 +109,10 @@ public class SyscallDemo {
                 if ret == 0:
                     print(f'  sethostname    -> OK        hostname is now: {get_hostname()}')
                 elif err == 1:
-                    print(f'  sethostname    -> EPERM     BLOCKED by seccomp (hostname unchanged)')
+                    if os.geteuid() == 0:
+                        print(f'  sethostname    -> EPERM     BLOCKED by seccomp (hostname unchanged)')
+                    else:
+                        print(f'  sethostname    -> EPERM     BLOCKED by kernel (missing CAP_SYS_ADMIN)')
                 elif err == 19:
                     print(f'  sethostname    -> ENODEV    BLOCKED by gVisor (not implemented)')
                 else:
@@ -132,8 +135,11 @@ public class SyscallDemo {
                 """;
 
         SandboxRunner.runPythonUnsandboxed("sethostname unsandboxed", script);
-        // Restore hostname changed by unsandboxed run before sandboxed test
-        SandboxRunner.exec("hostname", originalHostname);
+        // Restore hostname only if the unsandboxed run could actually have changed it
+        // (i.e. we're root). When non-root the kernel returned EPERM and hostname is unchanged.
+        if ("root".equals(System.getProperty("user.name"))) {
+            SandboxRunner.exec("hostname", originalHostname);
+        }
         SandboxRunner.runPythonSandboxed(  "sethostname sandboxed (seccomp blocks it)",
                 script, List.of(), seccomp, "none");
         System.out.println("\n\n\n");
