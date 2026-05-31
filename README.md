@@ -48,25 +48,49 @@ Demos 1 and 2 run as an ordinary user.
 
 ### Sandbox platform
 
-The demos launch `runsc` with `--platform=systrap` (gVisor's modern default). `systrap`
-nests reliably inside containers; the older `--platform=ptrace` can fail to start the
-sandbox when run nested — the symptom is:
-
-```
-cannot create sandbox: cannot read client sync file: waiting for sandbox to start: EOF
-```
-
-If you change the platform, update it in both `SandboxRunner.java` and `NetworkDemo.java`.
+The demos launch `runsc` with `--platform=systrap` (gVisor's modern default), which nests
+reliably inside containers. See Troubleshooting below if you switch platforms.
 
 ### Running inside Docker
 
-The demos run on bare metal as-is. If running inside a Docker container, the container needs
-enough privilege for `runsc` to fork its sandbox processes (otherwise you'll see
-`fork/exec /proc/self/exe: operation not permitted`). The minimum is:
+The demos run on bare metal as-is. Inside a Docker container they need extra capabilities and,
+for Demo 3, extra packages. This command runs all three demos without `--privileged`:
 
 ```bash
-docker run --cap-add=SYS_ADMIN --security-opt=seccomp=unconfined ...
+docker run --name ubuntu \
+  --cap-add=SYS_ADMIN --cap-add=NET_ADMIN \
+  --security-opt seccomp=unconfined \
+  -it <image>
 ```
 
-`--privileged` also works but grants more than necessary. Note that `SYS_PTRACE` is **not**
-required with the `systrap` platform, and is already included by `--privileged`.
+- `SYS_ADMIN` lets `runsc` fork its sandbox processes — without it Demos 1 & 2 fail with
+  `fork/exec /proc/self/exe: operation not permitted`.
+- `NET_ADMIN` lets Demo 3 create the netns, veth pair, and iptables rules and write
+  `/proc/sys/net/ipv4/ip_forward`. Demos 1 & 2 don't need it.
+- `seccomp=unconfined` lets the sandbox make the syscalls it needs.
+- `SYS_PTRACE` is **not** required with the `systrap` platform.
+
+`--privileged` also works but grants more than necessary.
+
+**Demo 3** additionally needs `ip` and `iptables` installed. On Debian/Ubuntu images:
+
+```bash
+apt-get update && apt-get install -y iproute2 iptables
+```
+
+(RHEL/UBI: `dnf install -y iproute iptables`.) Bake these into your Dockerfile so they survive
+container removal. Without them `setup-netns.sh` fails with `command not found`, the netns is
+never created, and the sandboxed run reports everything BLOCKED — a false pass.
+
+### Troubleshooting
+
+**`cannot read client sync file: waiting for sandbox to start: EOF`** — the sandbox boot
+process died. Two common causes:
+
+- A **bind-mount source that doesn't exist** on the host. gVisor aborts the whole sandbox if
+  any bind source is missing (e.g. minimal images with no `/etc/localtime`). Demo 1 now skips
+  the `/etc/localtime` mount automatically when the host lacks it. To diagnose other cases, add
+  `--debug --debug-log=/tmp/rd/` to the `runsc` invocation and read `/tmp/rd/*boot*`.
+- The deprecated **`--platform=ptrace`** failing to nest inside a container. The demos use
+  `--platform=systrap` for this reason; if you change it, update both `SandboxRunner.java` and
+  `NetworkDemo.java`.
