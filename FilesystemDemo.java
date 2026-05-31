@@ -89,7 +89,8 @@ public class FilesystemDemo {
 
         List<String> extraMounts = List.of(
                 // data/ is the ONLY rw mount that reaches the real host filesystem
-                SandboxRunner.mount("/sandbox-data", dataAbs, "bind", "rbind,rw")
+                SandboxRunner.mount("/sandbox-data", dataAbs, "bind", "rbind,rw"),
+                SandboxRunner.mount("/etc/localtime", "/etc/localtime", "bind", "rbind,ro")
         );
 
         SandboxRunner.runPythonSandboxed(
