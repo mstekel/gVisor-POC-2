@@ -46,6 +46,7 @@ run as root, so neither is needed.)
 ### Demo 1 — Filesystem
 - **Unsandboxed**: writes to `data/` and `/tmp` both succeed
 - **Sandboxed**: only `/sandbox-data` (mapped to `data/`) is writable; writes to `/tmp` and `/usr` are blocked
+- **Read-only vs hidden**: `/sandbox-data/readonly.txt` is exposed via a per-file read-only bind mount — it can be *read* but not *written* (`BLOCKED` on write) even though its parent directory `/sandbox-data` is writable, while `/etc/passwd` is hidden entirely (`FileNotFoundError`) — three distinct kinds of access: writable, read-only, and hidden
 
 ### Demo 2 — Syscall (perf_event_open)
 - **Unsandboxed**: `perf_event_open` reaches the kernel (returns ENOENT — no hw counters in container, but the syscall was reachable)

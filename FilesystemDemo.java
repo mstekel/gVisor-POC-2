@@ -1,4 +1,6 @@
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -18,6 +20,10 @@ import java.util.List;
  *              writes to /usr                  -> fails    (read-only bind mount).
  *              reads  /sandbox-data            -> succeeds.
  *              reads  /etc/passwd              -> fails    (no /etc in sandbox).
+ *              reads  /sandbox-data/readonly.txt -> succeeds, but
+ *              writes to that same file        -> fails    (per-file read-only
+ *                                                           bind mount, even though
+ *                                                           its directory is writable).
  */
 public class FilesystemDemo {
 
@@ -32,6 +38,18 @@ public class FilesystemDemo {
 
         new File("data").mkdirs();
         String dataAbs = new File("data").getAbsolutePath();
+
+        // Pre-create a file we will expose at single-file read-only granularity
+        // (same mechanism as the /etc/localtime mount). The /sandbox-data
+        // directory stays writable; only THIS one file is read-only, via a
+        // per-file ro bind mount layered on top of the writable directory.
+        String roFileName = "readonly.txt";
+        try {
+            Files.writeString(new File("data", roFileName).toPath(),
+                    "this single file is mounted read-only\n");
+        } catch (IOException e) {
+            System.out.println("  Setup error creating " + roFileName + ": " + e.getMessage());
+        }
 
         // - Unsandboxed -
         String unsandboxedScript = """
@@ -62,6 +80,12 @@ public class FilesystemDemo {
                 import datetime
                 tag = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
+                # A single file exposed read-only via a per-file bind mount, even
+                # though its parent directory (/sandbox-data) is writable. Shows
+                # read-only at single-file granularity, distinct from /etc/passwd
+                # (hidden entirely / not mounted).
+                ro_file = '/sandbox-data/readonly.txt'
+
                 write_paths = [
                     ('/sandbox-data/sandboxed_' + tag + '.txt', 'allowed folder  (/sandbox-data)'),
                     ('/tmp/sandboxed_'           + tag + '.txt', 'temp folder     (/tmp)          '),
@@ -86,11 +110,36 @@ public class FilesystemDemo {
                         print(f'  READ  {desc} -> OK ({len(data)} bytes)  <- should only happen for /sandbox-data')
                     except Exception as e:
                         print(f'  READ  {desc} -> BLOCKED ({type(e).__name__})')
+
+                # Single read-only file inside the writable /sandbox-data dir:
+                # READable, but writes are denied by the per-file ro bind mount.
+                # The directory itself stays writable (see the /sandbox-data WRITE
+                # above), so this is read-only at single-file granularity.
+                desc = 'read-only file  (/sandbox-data/readonly.txt)'
+                try:
+                    with open(ro_file) as f:
+                        n = len(f.read())
+                    print(f'  READ  {desc} -> OK ({n} bytes)')
+                except Exception as e:
+                    print(f'  READ  {desc} -> BLOCKED ({type(e).__name__})')
+                try:
+                    # 'a' requests write access; on the read-only file bind mount
+                    # this fails at open() without ever modifying the file.
+                    open(ro_file, 'a').close()
+                    print(f'  WRITE {desc} -> OK  <- should NOT happen (read-only file)')
+                except Exception as e:
+                    print(f'  WRITE {desc} -> BLOCKED ({type(e).__name__})')
                 """;
 
         List<String> extraMounts = new ArrayList<>();
         // data/ is the ONLY rw mount that reaches the real host filesystem
         extraMounts.add(SandboxRunner.mount("/sandbox-data", dataAbs, "bind", "rbind,rw"));
+        // Single-file read-only bind mount, layered on top of the writable dir
+        // above. Order matters: this must come AFTER the /sandbox-data rw mount
+        // so it overlays just this one file. Result: the directory is writable,
+        // but /sandbox-data/readonly.txt is not.
+        extraMounts.add(SandboxRunner.mount(
+                "/sandbox-data/" + roFileName, dataAbs + "/" + roFileName, "bind", "rbind,ro"));
         // Only bind /etc/localtime when the host actually has it. gVisor aborts
         // the entire sandbox if a bind-mount source is missing (e.g. minimal
         // container images that ship no /etc/localtime), so guard it.
