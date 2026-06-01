@@ -109,6 +109,7 @@ public class NetworkDemo {
         SandboxRunner.exec(
                 "runsc",
                 "--root",           tmpRoot,
+                "--rootless",
                 "--ignore-cgroups",
                 "--platform=systrap",
                 "run",
