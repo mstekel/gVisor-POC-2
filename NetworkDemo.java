@@ -109,9 +109,9 @@ public class NetworkDemo {
         SandboxRunner.exec(
                 "runsc",
                 "--root",           tmpRoot,
-                "--rootless",
                 "--ignore-cgroups",
                 "--platform=systrap",
+                "--network=none",
                 "run",
                 "--bundle", bundle,
                 "sandbox-net-" + pid);
