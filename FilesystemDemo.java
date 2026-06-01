@@ -1,8 +1,6 @@
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,9 +25,6 @@ import java.util.List;
  */
 public class FilesystemDemo {
 
-    private static final String DATE_TAG =
-            LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
-
     public void run() {
         System.out.println("\n\n\n+------------------------------------------+");
         System.out.println("|  Demo 1: Filesystem Restriction          |");
@@ -39,10 +34,9 @@ public class FilesystemDemo {
         new File("data").mkdirs();
         String dataAbs = new File("data").getAbsolutePath();
 
-        // Pre-create a file we will expose at single-file read-only granularity
-        // (same mechanism as the /etc/localtime mount). The /sandbox-data
-        // directory stays writable; only THIS one file is read-only, via a
-        // per-file ro bind mount layered on top of the writable directory.
+        // Pre-create a file we will expose at single-file read-only granularity.
+        // The /sandbox-data directory stays writable; only THIS one file is
+        // read-only, via a per-file ro bind mount layered on top of the dir.
         String roFileName = "readonly.txt";
         try {
             Files.writeString(new File("data", roFileName).toPath(),
@@ -54,7 +48,7 @@ public class FilesystemDemo {
         // - Unsandboxed -
         String unsandboxedScript = """
                 import os, datetime
-                tag = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+                tag = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d_%H-%M-%S')
 
                 for path in ['data/unsandboxed_' + tag + '.txt', '/tmp/unsandboxed_' + tag + '.txt']:
                     try:
@@ -78,7 +72,7 @@ public class FilesystemDemo {
         // - Sandboxed -
         String sandboxedScript = """
                 import datetime
-                tag = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+                tag = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d_%H-%M-%S')
 
                 # A single file exposed read-only via a per-file bind mount, even
                 # though its parent directory (/sandbox-data) is writable. Shows
@@ -140,12 +134,6 @@ public class FilesystemDemo {
         // but /sandbox-data/readonly.txt is not.
         extraMounts.add(SandboxRunner.mount(
                 "/sandbox-data/" + roFileName, dataAbs + "/" + roFileName, "bind", "rbind,ro"));
-        // Only bind /etc/localtime when the host actually has it. gVisor aborts
-        // the entire sandbox if a bind-mount source is missing (e.g. minimal
-        // container images that ship no /etc/localtime), so guard it.
-        if (new File("/etc/localtime").exists()) {
-            extraMounts.add(SandboxRunner.mount("/etc/localtime", "/etc/localtime", "bind", "rbind,ro"));
-        }
 
         SandboxRunner.runPythonSandboxed(
                 "Read/Write to allowed folder, /tmp, /usr, /etc/passwd",

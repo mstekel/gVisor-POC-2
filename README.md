@@ -107,9 +107,10 @@ never created, and the sandboxed run reports everything BLOCKED — a false pass
 process died. Two common causes:
 
 - A **bind-mount source that doesn't exist** on the host. gVisor aborts the whole sandbox if
-  any bind source is missing (e.g. minimal images with no `/etc/localtime`). Demo 1 now skips
-  the `/etc/localtime` mount automatically when the host lacks it. To diagnose other cases, add
-  `--debug --debug-log=/tmp/rd/` to the `runsc` invocation and read `/tmp/rd/*boot*`.
+  any bind source is missing (e.g. binding `/etc/localtime` on a minimal image that ships
+  without it). Make sure every bind-mount source in the OCI config exists on the host. To
+  diagnose, add `--debug --debug-log=/tmp/rd/` to the `runsc` invocation and read
+  `/tmp/rd/*boot*`.
 - The deprecated **`--platform=ptrace`** failing to nest inside a container. The demos use
   `--platform=systrap` for this reason; if you change it, update both `SandboxRunner.java` and
   `NetworkDemo.java`.
