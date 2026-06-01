@@ -111,6 +111,7 @@ public class NetworkDemo {
                 "--root",           tmpRoot,
                 "--ignore-cgroups",
                 "--platform=systrap",
+                "--network=sandbox",
                 "run",
                 "--bundle", bundle,
                 "sandbox-net-" + pid);
