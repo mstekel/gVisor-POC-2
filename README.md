@@ -15,31 +15,14 @@ mkdir -p data
 ## Running
 
 ```bash
-java Main filesystem        # Demo 1: restrict writes to one folder
-java Main syscall           # Demo 2: block perf_event_open (vulnerable kernel API)
-sudo java Main network      # Demo 3: block all network access (needs root)
+java Main filesystem        # Demo 1: restrict writes to one folder / file
+java Main syscall           # Demo 2: an unimplemented syscall + a seccomp-denied one
+java Main network           # Demo 3: no network + one Unix-domain socket channel
 ```
 
-Demo 3 requires `sudo` because it creates a network namespace, a veth pair, and iptables rules.
-Demos 1 and 2 run as an ordinary user.
-
-### Making `runsc` reachable under `sudo`
-
-The demos invoke `runsc` as a bare command, so it must be on `PATH`. `runsc` is usually
-installed in `/usr/local/bin`, but `sudo` resets `PATH` to its `secure_path` (typically
-`/usr/sbin:/usr/bin:/sbin:/bin`), which excludes `/usr/local/bin` — so `sudo java Main network`
-fails to find `runsc`. Fix it either way:
-
-```bash
-# Option A — pass your PATH through to the sudoed process
-sudo env "PATH=$PATH" java Main network
-
-# Option B — symlink runsc into a directory already on secure_path
-sudo ln -s /usr/local/bin/runsc /usr/bin/runsc
-```
-
-Option A leaves the system untouched; Option B is a one-time setup. (Inside the container you
-run as root, so neither is needed.)
+**All three demos run rootless, as an ordinary user — no `sudo` or root needed.** `runsc` is
+invoked as a bare command, so it must be on `PATH` (it's usually installed in `/usr/local/bin`,
+which is normally already on an ordinary user's `PATH`).
 
 ## What each demo shows
 
@@ -54,16 +37,18 @@ run as root, so neither is needed.)
 
 `perf_event_open` has been the entry point for multiple local privilege escalation CVEs (CVE-2013-2094, CVE-2016-6786, and others).
 
-### Demo 3 — Network
-- **Unsandboxed**: connects to localhost echo server and attempts external IP
-- **Sandboxed**: `--network=none` blocks all socket operations with ENETDOWN
+### Demo 3 — Network (no network + one Unix socket)
+- **Unsandboxed**: connects to the parent's **Unix-domain echo socket** (OK) *and* an external TCP connection (`8.8.8.8:53`) succeeds — the host has full network.
+- **Sandboxed** (`--network=none`): connects to the **one bind-mounted Unix socket** (OK, via `--host-uds=open`), but every IP operation is blocked by gVisor (`ENETUNREACH`).
+
+The sandbox has *no* network stack. Its only channel out is a single Unix-domain socket — the parent's echo server — exposed by bind-mounting just that socket and allowing host-UDS access. The sandboxed workload's `stdin`/`stdout`/`stderr` stay completely free for its own use (the channel is an explicitly-opened `AF_UNIX` socket, not a hijacked standard stream). There is no veth, netns, or iptables: the isolation is enforced by gVisor itself, the demo runs **rootless**, needs no `sudo`/`CAP_SYS_ADMIN`, and touches nothing on the host *network* (the socket is a filesystem path, not a network endpoint).
 
 ## Requirements
 
 - Linux host with gVisor (`runsc`) installed
-- Python 3.12
+- Python 3 (3.12 recommended)
 - JDK 17+
-- Root (via `sudo`) for Demo 3 only — needed to create the netns, veth pair, and iptables rules
+- All three demos run **rootless** (ordinary user) — no root, `sudo`, `iproute2`/`iptables`, or network setup
 
 ### Sandbox platform
 
@@ -72,34 +57,25 @@ reliably inside containers. See Troubleshooting below if you switch platforms.
 
 ### Running inside Docker
 
-The demos run on bare metal as-is. Inside a Docker container they need extra capabilities and,
-for Demo 3, extra packages. This command runs all three demos without `--privileged`:
+The demos run on bare metal as-is. Inside a Docker container they need one extra capability for
+`runsc` to fork its sandbox processes. This command runs **all three** demos without `--privileged`:
 
 ```bash
-docker run --name ubuntu \
-  --cap-add=SYS_ADMIN --cap-add=NET_ADMIN \
+docker run --name gvisor-demo \
+  --cap-add=SYS_ADMIN \
   --security-opt seccomp=unconfined \
   -it <image>
 ```
 
-- `SYS_ADMIN` lets `runsc` fork its sandbox processes — without it Demos 1 & 2 fail with
+- `SYS_ADMIN` lets `runsc` fork its sandbox processes — without it the sandboxed runs fail with
   `fork/exec /proc/self/exe: operation not permitted`.
-- `NET_ADMIN` lets Demo 3 create the netns, veth pair, and iptables rules and write
-  `/proc/sys/net/ipv4/ip_forward`. Demos 1 & 2 don't need it.
 - `seccomp=unconfined` lets the sandbox make the syscalls it needs.
-- `SYS_PTRACE` is **not** required with the `systrap` platform.
+- `SYS_PTRACE` and `NET_ADMIN` are **not** required — Demo 3 no longer uses a network namespace,
+  so no `iproute2`/`iptables` packages or `NET_ADMIN` are needed either.
 
-`--privileged` also works but grants more than necessary.
-
-**Demo 3** additionally needs `ip` and `iptables` installed. On Debian/Ubuntu images:
-
-```bash
-apt-get update && apt-get install -y iproute2 iptables
-```
-
-(RHEL/UBI: `dnf install -y iproute iptables`.) Bake these into your Dockerfile so they survive
-container removal. Without them `setup-netns.sh` fails with `command not found`, the netns is
-never created, and the sandboxed run reports everything BLOCKED — a false pass.
+`--privileged` also works but grants more than necessary. On a Kubernetes node, also ensure
+unprivileged user namespaces are allowed (e.g. on Ubuntu 24.04:
+`sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`).
 
 ### Troubleshooting
 
