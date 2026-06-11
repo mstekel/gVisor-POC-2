@@ -64,6 +64,7 @@ public class SandboxRunner {
                     "--ignore-cgroups",
                     "--platform=systrap",
                     "--network=none",   // overridden per-demo via config namespaces
+                    "--oci-seccomp",    // honor the linux.seccomp block in config.json
                     "run",
                     "--bundle", bundle,
                     containerId);
@@ -115,7 +116,7 @@ public class SandboxRunner {
                   "hostname": "sandbox",
                   "process": {
                     "terminal": false,
-                    "user": { "uid": 1001, "gid": 1001 },
+                    "user": { "uid": 0, "gid": 0 },
                     "args": ["python3", "-c", "%s"],
                     "env": [
                       "PATH=/usr/bin:/usr/local/bin:/bin",
