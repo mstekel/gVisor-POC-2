@@ -143,7 +143,7 @@ public class NetworkDemo {
                   "hostname": "sandbox",
                   "process": {
                     "terminal": false,
-                    "user": { "uid": 0, "gid": 0 },
+                    "user": { "uid": 1001, "gid": 1001 },
                     "args": ["python3", "-c", "%s"],
                     "env": [
                       "PATH=/usr/bin:/usr/local/bin:/bin",
