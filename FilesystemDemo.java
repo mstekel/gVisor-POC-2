@@ -140,8 +140,7 @@ public class FilesystemDemo {
                 sandboxedScript,
                 extraMounts,
                 null,    // no seccomp
-                "none",  // no network needed
-                0        // rootless maps uid 0 -> host 1001 (the data/ owner), so writes are allowed
+                "none"   // no network needed
         );
 
         System.out.println("\n\n\n-- data/ contents after demo --");

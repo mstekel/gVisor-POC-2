@@ -32,18 +32,13 @@ public class SandboxRunner {
      * @param extraMounts additional OCI mounts (raw JSON array elements)
      * @param seccomp     seccomp JSON block, or null for no syscall filtering
      * @param networkMode "none" | "sandbox" | "host"
-     * @param uid         uid/gid the workload runs as inside the sandbox. Use the
-     *                    host data-dir owner (1001) for demos that write to bind
-     *                    mounts; use 0 for demos that need in-sandbox root (e.g.
-     *                    the seccomp case, where sethostname must otherwise succeed)
      */
     public static void runPythonSandboxed(
             String label,
             String script,
             List<String> extraMounts,
             String seccomp,
-            String networkMode,
-            int uid
+            String networkMode
     ) {
         System.out.println("\n\n\n[SANDBOXED]   " + label);
         try {
@@ -60,7 +55,7 @@ public class SandboxRunner {
             }
             new File(tmpRoot).mkdirs();
 
-            String config = buildConfig(script, extraMounts, seccomp, networkMode, uid);
+            String config = buildConfig(script, extraMounts, seccomp, networkMode);
             Files.writeString(Path.of(bundle + "/config.json"), config);
 
             String containerId = "sandbox-" + pid + "-" + System.nanoTime();
@@ -86,8 +81,7 @@ public class SandboxRunner {
             String script,
             List<String> extraMounts,
             String seccomp,
-            String networkMode,
-            int uid
+            String networkMode
     ) {
         String escapedScript = escapeJson(script);
 
@@ -123,7 +117,7 @@ public class SandboxRunner {
                   "hostname": "sandbox",
                   "process": {
                     "terminal": false,
-                    "user": { "uid": %d, "gid": %d },
+                    "user": { "uid": 0, "gid": 0 },
                     "args": ["python3", "-c", "%s"],
                     "env": [
                       "PATH=/usr/bin:/usr/local/bin:/bin",
@@ -146,7 +140,6 @@ public class SandboxRunner {
                   }
                 }
                 """.formatted(
-                uid, uid,
                 escapedScript,
                 String.join(",", mounts),
                 seccompBlock,
