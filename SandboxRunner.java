@@ -60,6 +60,8 @@ public class SandboxRunner {
 
             String containerId = "sandbox-" + pid + "-" + System.nanoTime();
             exec("sudo", "/usr/local/bin/runsc",
+                    "--debug",
+                    "--debug-log=/tmp/runsc-debug/",
                     "--root",           tmpRoot,
                     "--ignore-cgroups",
                     "--platform=systrap",
