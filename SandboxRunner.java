@@ -59,9 +59,8 @@ public class SandboxRunner {
             Files.writeString(Path.of(bundle + "/config.json"), config);
 
             String containerId = "sandbox-" + pid + "-" + System.nanoTime();
-            exec("runsc",
+            exec("sudo", "/usr/local/bin/runsc",
                     "--root",           tmpRoot,
-                    "--rootless",
                     "--ignore-cgroups",
                     "--platform=systrap",
                     "--network=none",   // overridden per-demo via config namespaces

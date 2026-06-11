@@ -121,9 +121,8 @@ public class NetworkDemo {
 
         System.out.println("\n\n\n[SANDBOXED]   Reach echo socket (allowed); external IP (blocked)");
         SandboxRunner.exec(
-                "runsc",
+                "sudo", "/usr/local/bin/runsc",
                 "--root",            tmpRoot,
-                "--rootless",
                 "--ignore-cgroups",
                 "--platform=systrap",
                 "--network=none",
