@@ -140,7 +140,8 @@ public class FilesystemDemo {
                 sandboxedScript,
                 extraMounts,
                 null,    // no seccomp
-                "none"   // no network needed
+                "none",  // no network needed
+                1001     // run as the host data/ owner so bind-mount writes are allowed
         );
 
         System.out.println("\n\n\n-- data/ contents after demo --");

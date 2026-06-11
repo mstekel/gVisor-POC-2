@@ -71,7 +71,7 @@ public class SyscallDemo {
 
         SandboxRunner.runPythonUnsandboxed("perf_event_open unsandboxed", script);
         SandboxRunner.runPythonSandboxed(  "perf_event_open sandboxed",
-                script, List.of(), null, "none");
+                script, List.of(), null, "none", 0);
     }
 
     // -- Case B: sethostname - implemented by gVisor, blocked by seccomp -----
@@ -141,7 +141,7 @@ public class SyscallDemo {
             SandboxRunner.exec("hostname", originalHostname);
         }
         SandboxRunner.runPythonSandboxed(  "sethostname sandboxed (seccomp blocks it)",
-                script, List.of(), seccomp, "none");
+                script, List.of(), seccomp, "none", 0);   // root in-sandbox: sethostname would succeed, so seccomp's EPERM is unambiguous
         System.out.println("\n\n\n");
     }
 }
