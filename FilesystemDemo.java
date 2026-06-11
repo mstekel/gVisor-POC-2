@@ -141,7 +141,7 @@ public class FilesystemDemo {
                 extraMounts,
                 null,    // no seccomp
                 "none",  // no network needed
-                1001     // run as the host data/ owner so bind-mount writes are allowed
+                0        // rootless maps uid 0 -> host 1001 (the data/ owner), so writes are allowed
         );
 
         System.out.println("\n\n\n-- data/ contents after demo --");

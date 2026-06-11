@@ -64,9 +64,10 @@ public class SandboxRunner {
             Files.writeString(Path.of(bundle + "/config.json"), config);
 
             String containerId = "sandbox-" + pid + "-" + System.nanoTime();
-            exec("sudo", "/usr/local/bin/runsc",
+            exec("/usr/local/bin/runsc",
                     "--debug",
                     "--debug-log=/tmp/runsc-debug/",
+                    "--rootless",       // userns maps in-sandbox uid 0 -> host uid 1001
                     "--root",           tmpRoot,
                     "--ignore-cgroups",
                     "--platform=systrap",

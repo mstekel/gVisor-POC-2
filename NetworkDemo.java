@@ -121,7 +121,8 @@ public class NetworkDemo {
 
         System.out.println("\n\n\n[SANDBOXED]   Reach echo socket (allowed); external IP (blocked)");
         SandboxRunner.exec(
-                "sudo", "/usr/local/bin/runsc",
+                "/usr/local/bin/runsc",
+                "--rootless",             // userns maps in-sandbox uid 0 -> host uid 1001
                 "--root",            tmpRoot,
                 "--ignore-cgroups",
                 "--platform=systrap",
@@ -143,7 +144,7 @@ public class NetworkDemo {
                   "hostname": "sandbox",
                   "process": {
                     "terminal": false,
-                    "user": { "uid": 1001, "gid": 1001 },
+                    "user": { "uid": 0, "gid": 0 },
                     "args": ["python3", "-c", "%s"],
                     "env": [
                       "PATH=/usr/bin:/usr/local/bin:/bin",
