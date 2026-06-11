@@ -65,8 +65,6 @@ public class SandboxRunner {
 
             String containerId = "sandbox-" + pid + "-" + System.nanoTime();
             exec("/usr/local/bin/runsc",
-                    "--debug",
-                    "--debug-log=/tmp/runsc-debug/",
                     "--rootless",       // userns maps in-sandbox uid 0 -> host uid 1001
                     "--root",           tmpRoot,
                     "--ignore-cgroups",
