@@ -145,11 +145,10 @@ public class NetworkDemo {
                   "process": {
                     "terminal": false,
                     "user": { "uid": 0, "gid": 0 },
-                    "args": ["python3", "-c", "%s"],
+                    "args": ["%s", "-c", "%s"],
                     "env": [
                       "PATH=/usr/bin:/usr/local/bin:/bin",
-                      "HOME=/tmp",
-                      "PYTHONPATH=/usr/lib/python3.12:/usr/lib/python3"
+                      "HOME=/tmp"
                     ],
                     "cwd": "/tmp"
                   },
@@ -175,8 +174,9 @@ public class NetworkDemo {
                   }
                 }
                 """.formatted(
+                SandboxRunner.PYTHON,
                 escaped,
-                SandboxRunner.mount("/usr",   "/usr",   "bind", "rbind,ro"),
+                SandboxRunner.mount("/usr",  "/usr",   "bind", "rbind,ro"),
                 SandboxRunner.mount("/lib",   "/lib",   "bind", "rbind,ro"),
                 SandboxRunner.mount("/lib64", "/lib64", "bind", "rbind,ro"),
                 SandboxRunner.mount("/bin",   "/bin",   "bind", "rbind,ro"),

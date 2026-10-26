@@ -7,6 +7,20 @@ import java.util.*;
  */
 public class SandboxRunner {
 
+    /**
+     * Real path of the host's python3. /usr/bin/python3 may be a symlink into
+     * /etc/alternatives, which is not mounted in the sandbox, so use the target.
+     */
+    static final String PYTHON = resolvePython();
+
+    private static String resolvePython() {
+        try {
+            return Path.of("/usr/bin/python3").toRealPath().toString();
+        } catch (IOException | RuntimeException e) {
+            return "/usr/bin/python3";
+        }
+    }
+
     // - Public API -
 
     /**
@@ -118,11 +132,10 @@ public class SandboxRunner {
                   "process": {
                     "terminal": false,
                     "user": { "uid": 0, "gid": 0 },
-                    "args": ["python3", "-c", "%s"],
+                    "args": ["%s", "-c", "%s"],
                     "env": [
                       "PATH=/usr/bin:/usr/local/bin:/bin",
-                      "HOME=/tmp",
-                      "PYTHONPATH=/usr/lib/python3.12:/usr/lib/python3"
+                      "HOME=/tmp"
                     ],
                     "cwd": "/tmp"
                   },
@@ -140,6 +153,7 @@ public class SandboxRunner {
                   }
                 }
                 """.formatted(
+                PYTHON,
                 escapedScript,
                 String.join(",", mounts),
                 seccompBlock,
